@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alphabet — 日本語 Music</title>
+  <link rel="stylesheet" href="style.css?v=4" />
+  <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark'</script>
+  <style>
+    /* ── Script Practice ── */
+    .level-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .level-tab { padding: 0.45rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
+    .level-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+    .practice-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+    .practice-filters .sep { width: 1px; height: 24px; background: var(--border); margin: 0 0.25rem; }
+
+    .practice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+
+    .kana-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .kana-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+    .kana-card .kc-script {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .kc-script.hira { color: #60a5fa; }
+    .kc-script.kata { color: #a78bfa; }
+
+    .kana-card .kc-word {
+      font-family: var(--font-ja);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.3;
+      margin-bottom: 0.35rem;
+    }
+    .kana-card.level2 .kc-word,
+    .kana-card.level3 .kc-word { font-size: 1.3rem; }
+
+    /* Phonetic breakdown */
+    .kc-phonetic {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.2rem;
+      margin-bottom: 0.6rem;
+    }
+    .kc-phonetic.hidden { display: none; }
+    .kana-char-pair { display: flex; flex-direction: column; align-items: center; min-width: 1.4rem; }
+    .kcp-kana { font-family: var(--font-ja); font-size: 0.9rem; color: var(--muted); }
+    .kcp-rom  { font-size: 0.68rem; color: var(--accent); font-weight: 500; }
+    .kcp-sep  { color: var(--border); font-size: 0.9rem; padding: 0 0.1rem; align-self: flex-end; padding-bottom: 0.15rem; }
+
+    .kana-card .kc-meaning { font-size: 0.85rem; color: var(--text); font-weight: 500; margin-bottom: 0.5rem; }
+
+    .kana-card .kc-source {
+      font-size: 0.73rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .kc-source .kc-song { color: var(--accent); font-weight: 600; margin-bottom: 0.2rem; }
+    .kc-source .kc-line-ja { font-family: var(--font-ja); font-size: 0.8rem; color: #a8b6c8; }
+    .kc-source .kc-line-en { font-style: italic; margin-top: 0.1rem; }
+
+    .kana-card .kc-speak {
+      margin-top: 0.6rem;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      padding: 0.25rem 0.6rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-family: var(--font-ui);
+    }
+    .kana-card .kc-speak:hover { background: var(--accent-dim); }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="hero" style="padding-top:2rem;">
+      <h1>Japanese Alphabet</h1>
+      <p>Click any character to hear it spoken. Start with hiragana — it covers every sound in Japanese.</p>
+    </div>
+
+    <!-- Mode tabs -->
+    <div class="alpha-tabs controls" style="margin-bottom:1.5rem;">
+      <button class="btn active" id="modeChart">Chart</button>
+      <button class="btn" id="modePractice">Script Practice</button>
+      <button class="btn" id="modeFlash">Flashcards</button>
+    </div>
+
+    <!-- ── CHART MODE ── -->
+    <div id="chartMode">
+      <div class="controls" style="margin-bottom:1.25rem;">
+        <button class="btn active" id="tabBoth">Both scripts</button>
+        <button class="btn" id="tabHira">Hiragana only</button>
+        <button class="btn" id="tabKata">Katakana only</button>
+        <button class="btn active" id="tabRomaji">Hide romaji</button>
+      </div>
+      <div id="hiraSection" class="kana-section">
+        <h3>Hiragana — ひらがな</h3>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem;">Used for native Japanese words and grammar. Learn these first.</p>
+        <div class="kana-grid" id="hiraGrid"></div>
+      </div>
+      <div id="kataSection" class="kana-section" style="margin-top:2.5rem;">
+        <h3>Katakana — カタカナ</h3>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem;">Used for foreign loanwords — like ロングヘアー (Long Hair) or レモン (Lemon).</p>
+        <div class="kana-grid" id="kataGrid"></div>
+      </div>
+      <div style="margin-top:3rem;">
+        <h3>From the Songs</h3>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:1.25rem;">Real lines from your songs — spot hiragana and katakana in context.</p>
+        <div id="showcaseGrid"></div>
+      </div>
+    </div>
+
+    <!-- ── SCRIPT PRACTICE ── -->
+    <div id="practiceMode" style="display:none;">
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:1.5rem;">Practice reading kana from your actual songs. Click any card to hear it spoken.</p>
+
+      <!-- Level tabs -->
+      <div class="level-tabs">
+        <button class="level-tab active" id="lvl1">Level 1 — Words</button>
+        <button class="level-tab" id="lvl2">Level 2 — Phrases</button>
+        <button class="level-tab" id="lvl3">Level 3 — Full Lines</button>
+      </div>
+
+      <!-- Filters row -->
+      <div class="practice-filters">
+        <button class="btn active" id="filterAll">ひ＋カ Both</button>
+        <button class="btn" id="filterHira">ひらがな only</button>
+        <button class="btn" id="filterKata">カタカナ only</button>
+        <div class="sep"></div>
+        <button class="btn active" id="togglePhonetic">Hide sounds (sa·yo·na·ra)</button>
+      </div>
+
+      <div class="practice-grid" id="practiceGrid"></div>
+    </div>
+
+    <!-- ── FLASHCARD MODE ── -->
+    <div id="flashMode" style="display:none;">
+      <div class="controls" style="margin-bottom:1.5rem;">
+        <button class="btn active" id="flashBoth">Both</button>
+        <button class="btn" id="flashHira">Hiragana</button>
+        <button class="btn" id="flashKata">Katakana</button>
+      </div>
+      <div class="quiz-stats" id="flashStats"></div>
+      <div class="progress-bar"><div class="progress-fill" id="flashFill" style="width:0%"></div></div>
+      <div id="flashArea"></div>
+    </div>
+  </main>
+
+  <script src="lyrics.js?v=5"></script>
+  <script src="dict.js?v=4"></script>
+  <script src="app.js?v=5"></script>
+  <script>
+    // ── HIRAGANA / KATAKANA DATA ──────────────────────────────────
+    const HIRAGANA = [
+      ['あ','a'],['い','i'],['う','u'],['え','e'],['お','o'],
+      ['か','ka'],['き','ki'],['く','ku'],['け','ke'],['こ','ko'],
+      ['さ','sa'],['し','shi'],['す','su'],['せ','se'],['そ','so'],
+      ['た','ta'],['ち','chi'],['つ','tsu'],['て','te'],['と','to'],
+      ['な','na'],['に','ni'],['ぬ','nu'],['ね','ne'],['の','no'],
+      ['は','ha'],['ひ','hi'],['ふ','fu'],['へ','he'],['ほ','ho'],
+      ['ま','ma'],['み','mi'],['む','mu'],['め','me'],['も','mo'],
+      ['や','ya'],null,['ゆ','yu'],null,['よ','yo'],
+      ['ら','ra'],['り','ri'],['る','ru'],['れ','re'],['ろ','ro'],
+      ['わ','wa'],null,null,null,['を','wo'],
+      ['ん','n'],null,null,null,null,
+    ];
+    const KATAKANA = [
+      ['ア','a'],['イ','i'],['ウ','u'],['エ','e'],['オ','o'],
+      ['カ','ka'],['キ','ki'],['ク','ku'],['ケ','ke'],['コ','ko'],
+      ['サ','sa'],['シ','shi'],['ス','su'],['セ','se'],['ソ','so'],
+      ['タ','ta'],['チ','chi'],['ツ','tsu'],['テ','te'],['ト','to'],
+      ['ナ','na'],['ニ','ni'],['ヌ','nu'],['ネ','ne'],['ノ','no'],
+      ['ハ','ha'],['ヒ','hi'],['フ','fu'],['ヘ','he'],['ホ','ho'],
+      ['マ','ma'],['ミ','mi'],['ム','mu'],['メ','me'],['モ','mo'],
+      ['ヤ','ya'],null,['ユ','yu'],null,['ヨ','yo'],
+      ['ラ','ra'],['リ','ri'],['ル','ru'],['レ','re'],['ロ','ro'],
+      ['ワ','wa'],null,null,null,['ヲ','wo'],
+      ['ン','n'],null,null,null,null,
+    ];
+
+    // ── STATE ────────────────────────────────────────────────────
+    let showRomaji = false;
+    let showPhonetic = true;
+    let activeLevel = 1;
+    let activeFilter = 'all'; // 'all' | 'hira' | 'kata'
+    let flashFilter = 'both';
+    let flashDeck = [], flashCurrent = 0, flashFlipped = false, flashGot = 0, flashMiss = 0;
+
+    // ── CHART ────────────────────────────────────────────────────
+    function buildGrid(data, gridEl) {
+      gridEl.innerHTML = '';
+      data.forEach(entry => {
+        const cell = document.createElement('div');
+        if (!entry) {
+          cell.className = 'kana-cell empty';
+        } else {
+          const [char, rom] = entry;
+          cell.className = 'kana-cell';
+          cell.innerHTML = `<span class="char">${char}</span><span class="rom" style="${showRomaji ? '' : 'visibility:hidden'}">${rom}</span>`;
+          cell.title = rom;
+          cell.addEventListener('click', () => {
+            cell.classList.add('speaking');
+            speak(char);
+            setTimeout(() => cell.classList.remove('speaking'), 800);
+          });
+        }
+        gridEl.appendChild(cell);
+      });
+    }
+    function rebuildGrids() {
+      buildGrid(HIRAGANA, document.getElementById('hiraGrid'));
+      buildGrid(KATAKANA, document.getElementById('kataGrid'));
+    }
+    function buildShowcase() {
+      const grid = document.getElementById('showcaseGrid');
+      grid.innerHTML = '';
+      KANA_SHOWCASE.forEach(item => {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:.75rem;';
+        card.innerHTML = `
+          <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;">${item.song}</div>
+          <div style="font-family:var(--font-ja);font-size:1.5rem;margin-bottom:.35rem;cursor:pointer;" class="showcase-ja" title="Click to hear">${item.line}</div>
+          <div style="font-style:italic;color:#a8b6c8;font-size:.88rem;margin-bottom:.2rem;">${item.romaji}</div>
+          <div style="font-size:.85rem;color:var(--muted);margin-bottom:.5rem;">${item.en}</div>
+          <div style="font-size:.78rem;color:var(--accent);background:var(--accent-dim);display:inline-block;padding:.2rem .6rem;border-radius:6px;">${item.note}</div>`;
+        card.querySelector('.showcase-ja').addEventListener('click', () => speak(item.line));
+        grid.appendChild(card);
+      });
+    }
+
+    // ── SCRIPT PRACTICE ──────────────────────────────────────────
+    function getItems() {
+      let items;
+      if (activeLevel === 1) items = KANA_LEVELS.level1;
+      else if (activeLevel === 2) items = KANA_LEVELS.level2;
+      else items = KANA_SHOWCASE.map(s => ({ kana: s.line, meaning: s.en, script: detectScript(s.line), song: s.song, fullLine: s.line, lineEn: s.en }));
+
+      if (activeFilter === 'hira') items = items.filter(i => i.script === 'hira');
+      if (activeFilter === 'kata') items = items.filter(i => i.script === 'kata');
+      return items;
+    }
+
+    function detectScript(text) {
+      let h = 0, k = 0;
+      for (const c of text) {
+        const code = c.charCodeAt(0);
+        if (code >= 0x3040 && code <= 0x309F) h++;
+        if (code >= 0x30A0 && code <= 0x30FF) k++;
+      }
+      if (k > h) return 'kata';
+      if (h > 0) return 'hira';
+      return 'mixed';
+    }
+
+    function buildPhoneticHtml(text) {
+      const pairs = kanaBreakdown(text);
+      if (!pairs.length) return '';
+      let html = '';
+      pairs.forEach((p, i) => {
+        if (p.rom === null) {
+          // kanji or punctuation — show as-is
+          html += `<span style="font-family:var(--font-ja);font-size:.9rem;color:var(--muted);padding:0 .1rem;">${p.char}</span>`;
+        } else {
+          html += `<span class="kana-char-pair"><span class="kcp-kana">${p.char}</span><span class="kcp-rom">${p.rom}</span></span>`;
+          if (i < pairs.length - 1 && pairs[i+1].rom !== null) {
+            html += `<span class="kcp-sep">·</span>`;
+          }
+        }
+      });
+      return html;
+    }
+
+    function renderPractice() {
+      const grid = document.getElementById('practiceGrid');
+      const items = getItems();
+      grid.innerHTML = '';
+
+      if (!items.length) {
+        grid.innerHTML = `<p style="color:var(--muted);grid-column:1/-1;">No items for this filter.</p>`;
+        return;
+      }
+
+      const levelClass = activeLevel === 1 ? '' : activeLevel === 2 ? 'level2' : 'level3';
+
+      items.forEach(item => {
+        const scriptLabel = item.script === 'hira' ? 'ひらがな' : item.script === 'kata' ? 'カタカナ' : '混合';
+        const scriptCls = item.script === 'hira' ? 'hira' : 'kata';
+        const phoneticHtml = buildPhoneticHtml(item.kana);
+
+        const card = document.createElement('div');
+        card.className = `kana-card ${levelClass}`;
+        card.innerHTML = `
+          <div class="kc-script ${scriptCls}">${scriptLabel}</div>
+          <div class="kc-word">${item.kana}</div>
+          <div class="kc-phonetic${showPhonetic ? '' : ' hidden'}">${phoneticHtml}</div>
+          <div class="kc-meaning">${item.meaning}</div>
+          <div class="kc-source">
+            <div class="kc-song">from ${item.song}</div>
+            ${item.fullLine !== item.kana ? `<div class="kc-line-ja">${item.fullLine}</div>` : ''}
+            <div class="kc-line-en">${item.lineEn || ''}</div>
+          </div>
+          <button class="kc-speak">🔊 Hear it</button>
+        `;
+        card.querySelector('.kc-speak').addEventListener('click', e => { e.stopPropagation(); speak(item.kana); });
+        card.addEventListener('click', () => speak(item.kana));
+        grid.appendChild(card);
+      });
+    }
+
+    // ── FLASHCARDS ───────────────────────────────────────────────
+    function startFlash() {
+      const src = flashFilter === 'hira' ? HIRAGANA : flashFilter === 'kata' ? KATAKANA : [...HIRAGANA, ...KATAKANA];
+      flashDeck = src.filter(Boolean).sort(() => Math.random() - 0.5);
+      flashCurrent = 0; flashFlipped = false; flashGot = 0; flashMiss = 0;
+      renderFlash();
+    }
+    function renderFlash() {
+      const stats = document.getElementById('flashStats');
+      const fill = document.getElementById('flashFill');
+      const area = document.getElementById('flashArea');
+      fill.style.width = flashDeck.length ? Math.round((flashCurrent / flashDeck.length) * 100) + '%' : '0%';
+      stats.innerHTML = `
+        <div class="stat">Card <span>${Math.min(flashCurrent+1,flashDeck.length)} / ${flashDeck.length}</span></div>
+        <div class="stat good">Got it <span>${flashGot}</span></div>
+        <div class="stat bad">Try again <span>${flashMiss}</span></div>`;
+      if (flashCurrent >= flashDeck.length) {
+        fill.style.width = '100%';
+        area.innerHTML = `<div class="quiz-card" style="cursor:default;"><div style="font-size:2rem;">🎉</div><div style="font-size:1.1rem;font-weight:600;margin-top:.5rem;">All done!</div><div style="font-size:.85rem;color:var(--muted);margin-top:.4rem;">${flashGot} got it · ${flashMiss} to review</div></div><div class="quiz-actions" style="margin-top:1rem;"><button class="btn" id="flashRestartBtn">Shuffle &amp; Restart</button></div>`;
+        document.getElementById('flashRestartBtn').addEventListener('click', startFlash);
+        return;
+      }
+      const [char, rom] = flashDeck[flashCurrent];
+      if (!flashFlipped) {
+        area.innerHTML = `<div class="quiz-card" id="flashCard"><div class="front-ja" style="font-size:4rem;">${char}</div><div class="front-hint">what sound does this make?</div></div><div class="quiz-actions" style="visibility:hidden;"><button class="btn try-again" style="opacity:0">x</button><button class="btn got-it" style="opacity:0">x</button></div>`;
+        document.getElementById('flashCard').addEventListener('click', () => { flashFlipped = true; renderFlash(); });
+      } else {
+        area.innerHTML = `<div class="quiz-card" id="flashCard" title="Tap to flip back"><div style="font-family:var(--font-ja);font-size:3.5rem;font-weight:700;">${char}</div><div style="font-size:2rem;font-weight:600;margin-top:.5rem;color:var(--accent);">${rom}</div><button class="speak-btn" id="flashSpeak" style="margin-top:1rem;">🔊 Hear it</button><div style="font-size:.7rem;color:var(--muted);margin-top:.75rem;">tap card to flip back</div></div><div class="quiz-actions"><button class="btn try-again" id="flashMiss">✗ Try again</button><button class="btn got-it" id="flashGot">✓ Got it</button></div>`;
+        document.getElementById('flashCard').addEventListener('click', e => { if (e.target.id==='flashSpeak'||e.target.classList.contains('speak-btn'))return; flashFlipped=false; renderFlash(); });
+        document.getElementById('flashSpeak').addEventListener('click', () => speak(char));
+        document.getElementById('flashGot').addEventListener('click', () => { flashGot++; flashCurrent++; flashFlipped=false; renderFlash(); });
+        document.getElementById('flashMiss').addEventListener('click', () => { flashMiss++; flashDeck.push(flashDeck.splice(flashCurrent,1)[0]); flashFlipped=false; renderFlash(); });
+      }
+    }
+
+    // ── WIRE UP ──────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      rebuildGrids();
+      buildShowcase();
+
+      // Mode tabs
+      function showMode(mode) {
+        ['chartMode','practiceMode','flashMode'].forEach(id => document.getElementById(id).style.display='none');
+        document.getElementById(mode).style.display='';
+        document.querySelectorAll('.alpha-tabs .btn').forEach(b=>b.classList.remove('active'));
+        if (mode==='practiceMode') { document.getElementById('modePractice').classList.add('active'); renderPractice(); }
+        else if (mode==='flashMode') { document.getElementById('modeFlash').classList.add('active'); startFlash(); }
+        else document.getElementById('modeChart').classList.add('active');
+      }
+      document.getElementById('modeChart').addEventListener('click', () => showMode('chartMode'));
+      document.getElementById('modePractice').addEventListener('click', () => showMode('practiceMode'));
+      document.getElementById('modeFlash').addEventListener('click', () => showMode('flashMode'));
+
+      // Chart controls
+      const hiraSection = document.getElementById('hiraSection');
+      const kataSection = document.getElementById('kataSection');
+      function setScriptTab(el) { ['tabBoth','tabHira','tabKata'].forEach(id=>document.getElementById(id).classList.remove('active')); el.classList.add('active'); }
+      document.getElementById('tabBoth').addEventListener('click',function(){setScriptTab(this);hiraSection.style.display='';kataSection.style.display='';});
+      document.getElementById('tabHira').addEventListener('click',function(){setScriptTab(this);hiraSection.style.display='';kataSection.style.display='none';});
+      document.getElementById('tabKata').addEventListener('click',function(){setScriptTab(this);hiraSection.style.display='none';kataSection.style.display='';});
+      document.getElementById('tabRomaji').addEventListener('click', function() {
+        showRomaji = !showRomaji;
+        this.textContent = showRomaji ? 'Hide romaji' : 'Show romaji';
+        this.classList.toggle('active', showRomaji);
+        rebuildGrids();
+      });
+
+      // Practice level tabs
+      document.getElementById('lvl1').addEventListener('click',function(){activeLevel=1;['lvl1','lvl2','lvl3'].forEach(id=>document.getElementById(id).classList.remove('active'));this.classList.add('active');renderPractice();});
+      document.getElementById('lvl2').addEventListener('click',function(){activeLevel=2;['lvl1','lvl2','lvl3'].forEach(id=>document.getElementById(id).classList.remove('active'));this.classList.add('active');renderPractice();});
+      document.getElementById('lvl3').addEventListener('click',function(){activeLevel=3;['lvl1','lvl2','lvl3'].forEach(id=>document.getElementById(id).classList.remove('active'));this.classList.add('active');renderPractice();});
+
+      // Script filter
+      ['filterAll','filterHira','filterKata'].forEach(id=>{
+        document.getElementById(id).addEventListener('click',function(){
+          ['filterAll','filterHira','filterKata'].forEach(i=>document.getElementById(i).classList.remove('active'));
+          this.classList.add('active');
+          activeFilter = id==='filterAll'?'all':id==='filterHira'?'hira':'kata';
+          renderPractice();
+        });
+      });
+
+      // Phonetic toggle
+      document.getElementById('togglePhonetic').addEventListener('click', function() {
+        showPhonetic = !showPhonetic;
+        this.textContent = showPhonetic ? 'Hide sounds (sa·yo·na·ra)' : 'Show sounds (sa·yo·na·ra)';
+        this.classList.toggle('active', showPhonetic);
+        renderPractice();
+      });
+
+      // Flashcard script filter
+      function setFlashTab(el){['flashBoth','flashHira','flashKata'].forEach(id=>document.getElementById(id).classList.remove('active'));el.classList.add('active');}
+      document.getElementById('flashBoth').addEventListener('click',function(){setFlashTab(this);flashFilter='both';startFlash();});
+      document.getElementById('flashHira').addEventListener('click',function(){setFlashTab(this);flashFilter='hira';startFlash();});
+      document.getElementById('flashKata').addEventListener('click',function(){setFlashTab(this);flashFilter='kata';startFlash();});
+    });
+  </script>
+</body>
+</html>

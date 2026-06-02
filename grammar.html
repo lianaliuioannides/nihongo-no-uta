@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grammar Practice — 日本語 Music</title>
+  <link rel="stylesheet" href="style.css?v=4" />
+  <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark'</script>
+  <style>
+    /* Level tabs */
+    .level-tabs { display: flex; gap: .5rem; margin-bottom: 1.75rem; }
+
+    /* Hoverable Japanese words in grammar */
+    .ga-word {
+      cursor: pointer;
+      border-bottom: 1px dashed var(--accent);
+      transition: opacity .15s;
+    }
+    .ga-word:hover { opacity: .7; }
+
+    .gp-section { margin-bottom: 3rem; }
+    .gp-section h2 { font-size: 1.15rem; color: var(--accent); margin-bottom: .3rem; }
+    .gp-section .gp-desc { font-size: .85rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.6; }
+
+    /* Exercise card */
+    .ex-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+      transition: border-color .15s;
+    }
+    .ex-card.correct { border-color: #34d399; background: rgba(52,211,153,.06); }
+    .ex-card.wrong   { border-color: #f87171; background: rgba(248,113,113,.06); }
+
+    .ex-q { font-size: 1rem; margin-bottom: .75rem; line-height: 1.6; }
+    .ex-q .ja { font-family: var(--font-ja); font-size: 1.2rem; }
+    .ex-q .blank { display: inline-block; min-width: 3rem; border-bottom: 2px solid var(--accent); text-align: center; color: var(--accent); font-weight: 700; padding: 0 .25rem; }
+
+    .ex-options { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+    .ex-opt {
+      padding: .4rem .9rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: .88rem;
+      font-family: var(--font-ja);
+      transition: all .15s;
+    }
+    .ex-opt:hover:not([disabled]) { border-color: var(--accent); }
+    .ex-opt.selected-correct { background: rgba(52,211,153,.2); border-color: #34d399; color: #34d399; }
+    .ex-opt.selected-wrong   { background: rgba(248,113,113,.15); border-color: #f87171; color: #f87171; }
+    .ex-opt.reveal-correct   { background: rgba(52,211,153,.1); border-color: #34d399; }
+    .ex-opt[disabled] { cursor: default; opacity: .7; }
+
+    .ex-feedback { font-size: .85rem; line-height: 1.6; margin-top: .5rem; padding: .6rem .9rem; border-radius: 8px; }
+    .ex-feedback.correct { background: rgba(52,211,153,.1); color: #34d399; }
+    .ex-feedback.wrong   { background: rgba(248,113,113,.1); color: #f87171; }
+    .ex-feedback.hidden  { display: none; }
+
+    /* Reference tables */
+    .ref-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .75rem 0; }
+    .ref-table th { background: var(--surface2); text-align: left; padding: .5rem .75rem; font-weight: 600; color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+    .ref-table td { padding: .5rem .75rem; border-top: 1px solid var(--border); }
+    .ref-table td .ja { font-family: var(--font-ja); font-size: 1.05rem; }
+    .ref-table tr:hover td { background: var(--surface2); }
+
+    /* Noun grid */
+    .noun-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px,1fr)); gap: .5rem; margin-top: .75rem; }
+    .noun-pill { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; font-size: .82rem; cursor: pointer; transition: border-color .15s; }
+    .noun-pill:hover { border-color: var(--accent); }
+    .noun-pill .ja { font-family: var(--font-ja); font-size: 1.1rem; display: block; }
+    .noun-pill .rom { color: var(--muted); font-size: .75rem; }
+    .noun-pill .en { font-size: .75rem; color: var(--text); }
+
+    /* Score banner */
+    .score-banner { text-align: center; padding: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 2rem; }
+    .score-banner .score { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    .score-banner .score-label { font-size: .85rem; color: var(--muted); margin-top: .25rem; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="hero" style="padding-top:2rem;">
+      <h1>Grammar Practice</h1>
+      <p>Learn key Japanese grammar through your songs. Each exercise uses words from the lyrics — plus a few everyday nouns to build on.</p>
+    </div>
+
+    <div class="level-tabs">
+      <button class="btn active" id="tabL1">⭐ Level 1 — Foundations</button>
+      <button class="btn" id="tabL2">⭐⭐ Level 2 — Patterns</button>
+    </div>
+
+    <div id="scoreBar" style="display:none;" class="score-banner">
+      <div class="score" id="scoreNum">0 / 0</div>
+      <div class="score-label">answered correctly</div>
+    </div>
+
+    <div id="levelL1"></div>
+    <div id="levelL2" style="display:none"></div>
+  </main>
+
+  <script src="lyrics.js?v=5"></script>
+  <script src="dict.js?v=4"></script>
+  <script src="app.js?v=5"></script>
+  <script>
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initTooltip();
+
+    let totalAnswered = 0, totalCorrect = 0;
+
+    function updateScore() {
+      if (totalAnswered === 0) return;
+      document.getElementById('scoreBar').style.display = '';
+      document.getElementById('scoreNum').textContent = `${totalCorrect} / ${totalAnswered}`;
+    }
+
+    // ── Japanese word hover annotation ────────────────────────────
+    const JDICT_KEYS = [...JDICT.keys()].sort((a,b) => [...b].length - [...a].length);
+
+    function buildJaHtml(text) {
+      if (!text) return '';
+      const chars = [...text], n = chars.length;
+      let html = '', i = 0;
+      while (i < n) {
+        const ch = chars[i];
+        if (!/[぀-鿿＀-￯]/.test(ch)) { html += escHtml(ch); i++; continue; }
+        let matched = false;
+        for (const key of JDICT_KEYS) {
+          const kc = [...key];
+          if (i + kc.length > n) continue;
+          if (kc.every((c,j) => chars[i+j] === c)) {
+            html += `<span class="ga-word" data-word="${escAttr(key)}">${escHtml(key)}</span>`;
+            i += kc.length; matched = true; break;
+          }
+        }
+        if (!matched) {
+          html += /[一-鿿]/.test(ch)
+            ? `<span class="ga-word" data-word="${escAttr(ch)}">${escHtml(ch)}</span>`
+            : escHtml(ch);
+          i++;
+        }
+      }
+      return html;
+    }
+
+    function lookupGrammarWord(ja) {
+      if (JDICT.has(ja)) { const e = JDICT.get(ja); return { ja, hiragana: e.hiragana||ja, romaji: e.romaji||'', en: e.en||'', tier:'dict' }; }
+      const bn = BASIC_NOUNS.find(n => n.ja === ja || n.kanji === ja);
+      if (bn) return { ja, hiragana: bn.ja, romaji: bn.romaji, en: bn.en, tier:'key' };
+      for (const song of SONGS) {
+        for (const w of [...(song.vocab||[]), ...(song.extendedVocab||[])]) {
+          if (w.ja === ja) return { ...w, tier:'key' };
+        }
+      }
+      return null;
+    }
+
+    function annotateSection(div) {
+      // Annotate .ja cells in reference tables
+      div.querySelectorAll('.ja').forEach(el => {
+        if (!el.querySelector('.ga-word') && el.textContent.trim()) {
+          el.innerHTML = buildJaHtml(el.textContent);
+        }
+      });
+      // Annotate option buttons that contain Japanese
+      div.querySelectorAll('.ex-opt').forEach(btn => {
+        if (/[぀-鿿一-鿿]/.test(btn.textContent) && !btn.querySelector('.ga-word')) {
+          btn.innerHTML = buildJaHtml(btn.textContent);
+        }
+      });
+      // Wire up click → tooltip
+      div.querySelectorAll('.ga-word[data-word]').forEach(el => {
+        el.addEventListener('click', e => {
+          e.stopPropagation();
+          const w = lookupGrammarWord(el.dataset.word);
+          if (w) showTooltip(w, el); else showLookupTooltip(el.dataset.word, el);
+        });
+      });
+    }
+
+    // ── Reference data ────────────────────────────────────────────
+
+    const PRONOUNS_I = [
+      { ja: '僕', rom: 'boku', en: 'I / me', note: 'Casual, typically male. Warm, a little vulnerable. Used throughout Wacci\'s songs.' },
+      { ja: '私', rom: 'watashi', en: 'I / me', note: 'Neutral. Anyone can use it. More formal than 僕.' },
+      { ja: 'あたし', rom: 'atashi', en: 'I / me', note: 'Casual, softer, typically feminine.' },
+    ];
+    const PRONOUNS_YOU = [
+      { ja: '君', rom: 'kimi', en: 'you', note: 'Casual and close — used for someone you love or are intimate with. Very common in J-pop.' },
+      { ja: 'あなた', rom: 'anata', en: 'you', note: 'Neutral/polite. Also used by a wife to address her husband in traditional speech.' },
+      { ja: 'お前', rom: 'omae', en: 'you', note: 'Very casual, can sound rough. Used between close male friends.' },
+    ];
+
+    const I_ADJ = [
+      { ja: '美しい', rom: 'utsukushii', en: 'beautiful', song: 'レモン, 長い髪' },
+      { ja: '悲しい', rom: 'kanashii', en: 'sad', song: 'レモン' },
+      { ja: '優しい', rom: 'yasashii', en: 'kind / gentle', song: '別の人' },
+      { ja: '苦い', rom: 'nigai', en: 'bitter', song: 'レモン' },
+      { ja: '遠い', rom: 'tōi', en: 'far / distant', song: 'レモン' },
+      { ja: '寂しい', rom: 'sabishii', en: 'lonely', song: '足りない' },
+      { ja: '甘い', rom: 'amai', en: 'sweet', song: '足りない' },
+      { ja: '痛い', rom: 'itai', en: 'painful / ouch', song: 'レモン' },
+    ];
+
+    // ── LEVEL 1 SECTIONS ──────────────────────────────────────────
+    const SECTIONS_L1 = [
+
+      {
+        id: 'pronouns',
+        title: '1. "You" and "I" — choosing the right word',
+        desc: 'Japanese has different words for "I" and "you" depending on how casual or close you are with someone. In your songs, 君 and 僕 appear constantly.',
+        reference: () => `
+          <h3 style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">Reference</h3>
+          <table class="ref-table">
+            <tr><th>"I"</th><th>Romaji</th><th>Use when…</th></tr>
+            ${PRONOUNS_I.map(p=>`<tr><td><span class="ja">${p.ja}</span></td><td>${p.rom}</td><td>${p.note}</td></tr>`).join('')}
+          </table>
+          <table class="ref-table" style="margin-top:.5rem">
+            <tr><th>"You"</th><th>Romaji</th><th>Use when…</th></tr>
+            ${PRONOUNS_YOU.map(p=>`<tr><td><span class="ja">${p.ja}</span></td><td>${p.rom}</td><td>${p.note}</td></tr>`).join('')}
+          </table>`,
+        exercises: [
+          { q: 'In a tender love song, the male singer says "I like you". Which pronoun pair fits best?', options: ['僕が好きだ / 君が好きだ', '私が好きだ / お前が好きだ', 'あたしが好きだ / あなたが好きだ'], answer: 0, exp: '僕 (boku) is the warm casual "I" used by males in emotional songs, and 君 (kimi) is the intimate "you" — exactly what Wacci and DISH// use throughout their lyrics.' },
+          { q: 'You\'re speaking formally to someone you just met. How do you say "You are kind"?', options: ['あなたは優しい', '君は優しい', 'お前は優しい'], answer: 0, exp: 'あなた is the safest, most neutral "you" for formal situations. 君 is too intimate for a stranger, and お前 would be rude.' },
+          { q: 'Fill the blank: 「___のそばにいたい」 (I want to stay close to you) — speaker is a woman writing in a diary.', options: ['私', '僕', 'あたし'], answer: 0, exp: '私 is neutral and used by anyone. あたし also works (casual feminine), but 私 is the most natural choice in writing.' },
+          { q: 'From Wacci: 「___が悪いのかな」 (I wonder if it\'s my fault). Which pronoun?', options: ['僕', '私', 'あなた'], answer: 0, exp: 'Wacci uses 僕 throughout 別の人の彼女になったよ — the speaker is a young man using the soft, casual "I".' },
+        ]
+      },
+
+      {
+        id: 'possessive',
+        title: '2. の — "my cat", "your voice", "the scent of lemon"',
+        desc: 'の connects two nouns to show possession — exactly like "\'s" or "of" in English. [Person] の [noun] = [Person]\'s [noun]. The owner always comes first.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.5rem;">Pattern: [A] の [B] = A\'s B</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+              <div><span class="ja">わたしの夢</span> = my dream</div>
+              <div><span class="ja">君の声</span> = your voice</div>
+              <div><span class="ja">レモンの匂い</span> = scent of lemon</div>
+              <div><span class="ja">いぬの名前</span> = the dog's name</div>
+              <div><span class="ja">雨の音</span> = sound of rain</div>
+              <div><span class="ja">春の風</span> = spring wind</div>
+            </div>
+          </div>`,
+        exercises: [
+          { q: 'How do you say "my song" (私 = me, 歌 = song)?', options: ['私の歌', '歌の私', '私は歌'], answer: 0, exp: '私の歌 — the possessor comes FIRST, then の, then the thing possessed. Think: [owner] の [owned].' },
+          { q: 'From レモン: "You are my light" — 君は___の光. Fill the blank.', options: ['わたし', '君', 'あなた'], answer: 0, exp: 'わたしの光 = "my light". The full line is 今も君はわたしの光 (Even now, you are my light).' },
+          { q: 'How do you say "the dog\'s voice" (いぬ = dog, 声 = voice)?', options: ['いぬの声', '声のいぬ', 'いぬは声'], answer: 0, exp: 'いぬの声 — [owner] の [thing]. の links any two nouns, not just people.' },
+          { q: 'Which means "the scent of rain" (雨 = rain, 匂い = scent)?', options: ['雨の匂い', '匂いの雨', '雨は匂い'], answer: 0, exp: '雨の匂い. In レモン you hear 苦いレモンの匂い (scent of a bitter lemon) — same pattern.' },
+          { q: '"Your younger sister\'s dream" (君, いもうと = younger sister, 夢 = dream)?', options: ['君のいもうとの夢', '夢のいもうとの君', '君は夢のいもうと'], answer: 0, exp: '君のいもうとの夢 — you can chain の: [yours] の [sister] の [dream].' },
+        ]
+      },
+
+      {
+        id: 'iadj',
+        title: '3. い-adjectives — words that describe',
+        desc: 'Japanese adjectives ending in い attach directly to nouns or go after は. You\'ve already seen them all over your songs — 悲しい, 美しい, 優しい. Hover any word to see its reading.',
+        reference: () => `
+          <table class="ref-table">
+            <tr><th>Japanese</th><th>Reading</th><th>Meaning</th><th>Song</th></tr>
+            ${I_ADJ.map(a=>`<tr><td><span class="ja">${a.ja}</span></td><td style="color:var(--romaji-color);font-style:italic">${a.rom}</td><td>${a.en}</td><td style="color:var(--muted);font-size:.78rem">${a.song}</td></tr>`).join('')}
+          </table>`,
+        exercises: [
+          { q: 'From レモン: "苦いレモンの匂い" — 苦い means?', options: ['bitter', 'beautiful', 'sad'], answer: 0, exp: '苦い (nigai) = bitter. The line means "the scent of a bitter lemon" — that taste you can\'t shake.' },
+          { q: 'Which adjective fills "世界は___" to mean "The world is beautiful"?', options: ['美しい', '悲しい', '遠い'], answer: 0, exp: '美しい (utsukushii) = beautiful. 世界は美しい is the exact line from レモン\'s chorus.' },
+          { q: '足りない mentions "電話くれた時の甘い声" — 甘い means?', options: ['sweet', 'kind', 'painful'], answer: 0, exp: '甘い (amai) = sweet. 甘い声 = "sweet voice" — the sound of a call you still remember.' },
+          { q: '"遠い夢" (from レモン) — what does 遠い describe?', options: ['a distant dream', 'a bitter dream', 'a sad dream'], answer: 0, exp: '遠い (tōi) = far / distant. 遠い + 夢 = "a distant dream" — dreams that feel out of reach.' },
+          { q: 'Which word means "lonely"?', options: ['寂しい', '優しい', '甘い'], answer: 0, exp: '寂しい (sabishii) = lonely. It appears in 足りない as 寂しさ (the noun form: loneliness).' },
+        ]
+      },
+
+      {
+        id: 'hawa',
+        title: '4. X は Y — the basic Japanese sentence',
+        desc: 'The most common sentence structure: [topic] は [description]. は (read "wa") sets up what the sentence is ABOUT, then you describe it. No "is" verb needed — just put the description after は.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.75rem;">Pattern: [topic] は [adjective / noun]</div>
+            <table class="ref-table">
+              <tr><th>Japanese</th><th>Meaning</th><th>Song</th></tr>
+              <tr><td><span class="ja">世界は美しい</span></td><td>The world is beautiful</td><td>レモン</td></tr>
+              <tr><td><span class="ja">夢は遠い</span></td><td>Dreams are far away</td><td>—</td></tr>
+              <tr><td><span class="ja">君はわたしの光</span></td><td>You are my light</td><td>レモン</td></tr>
+              <tr><td><span class="ja">猫は可愛い</span></td><td>Cats are cute</td><td>—</td></tr>
+              <tr><td><span class="ja">心はいつもそばにある</span></td><td>My heart is always nearby</td><td>さよなら</td></tr>
+            </table>
+          </div>`,
+        exercises: [
+          { q: 'What does "世界は美しい" mean? (世界 = world, 美しい = beautiful)', options: ['The world is beautiful', 'The cat is cute', 'A dream is far'], answer: 0, exp: '世界 (world) は → topic. 美しい (beautiful) → what we say about it. This is the exact line from レモン\'s chorus.' },
+          { q: 'In "猫は可愛い", は comes after which word?', options: ['猫 (cat)', '可愛い (cute)', 'は itself'], answer: 0, exp: 'は comes after 猫 — 猫 is the TOPIC. "As for cats, [they] are cute." The topic always comes before は.' },
+          { q: 'How do you say "Rain is beautiful" (雨 = rain, 美しい = beautiful)?', options: ['雨は美しい', '美しいは雨', '雨が美しいの'], answer: 0, exp: '雨は美しい — は marks 雨 as the topic. Then 美しい describes it. Simple and correct.' },
+          { q: 'From レモン: "今も君はわたしの光" — 君は sets up the topic. What\'s the topic?', options: ['君 (you)', '光 (light)', '今 (now)'], answer: 0, exp: '君は — "as for you". The rest of the sentence (わたしの光) says what you ARE: my light.' },
+        ]
+      },
+
+      {
+        id: 'wo',
+        title: '5. を — marking what the action is done TO',
+        desc: 'を (pronounced "o") marks the OBJECT of a verb — the thing being acted on. In English: "I love you" → you are the object. In Japanese: 君を愛してる → 君を is the object (you = what\'s being loved).',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.75rem;">Pattern: [noun] を [verb] — を marks the action target</div>
+            <table class="ref-table">
+              <tr><th>Japanese</th><th>Meaning</th><th>を marks…</th></tr>
+              <tr><td><span class="ja">君を愛してる</span></td><td>I love you</td><td>you (what's loved)</td></tr>
+              <tr><td><span class="ja">夢を見る</span></td><td>to dream (lit: see a dream)</td><td>the dream (what's seen)</td></tr>
+              <tr><td><span class="ja">声を聞く</span></td><td>to hear a voice</td><td>the voice (what's heard)</td></tr>
+              <tr><td><span class="ja">君を忘れる</span></td><td>to forget you</td><td>you (what's forgotten)</td></tr>
+              <tr><td><span class="ja">世界を愛して</span></td><td>loving the world</td><td>the world (what's loved)</td></tr>
+            </table>
+          </div>`,
+        exercises: [
+          { q: 'In "君を忘れる" (忘れる = forget), what does を mark?', options: ['you — what\'s being forgotten', 'the one who\'s forgetting', 'when the forgetting happens'], answer: 0, exp: '君を — を marks 君 (you) as the OBJECT of 忘れる (forget). You = what\'s being forgotten.' },
+          { q: '"声を聞きたい" (聞きたい = want to hear) means?', options: ['I want to hear your voice', 'I want to forget your voice', 'Your voice is here'], answer: 0, exp: '声を聞きたい — 声 (voice) is the object of 聞く (hear). を marks it as what you want to hear.' },
+          { q: 'From 猫: "全身で君を求めてる" — 君を means…', options: ['seeking YOU (you = what\'s sought)', 'you are searching', 'you = the seeker'], answer: 0, exp: '君を求めてる — 求める (motomeru) = to seek/want. 君を marks YOU as what every part of him is seeking.' },
+          { q: 'How do you say "forget the rain" (雨 = rain, 忘れる = forget)?', options: ['雨を忘れる', '忘れるを雨', '雨は忘れる'], answer: 0, exp: '雨を忘れる — を marks 雨 as the object of 忘れる. Object always comes before the verb in Japanese.' },
+        ]
+      },
+
+    ]; // end SECTIONS_L1
+
+    // ── LEVEL 2 SECTIONS ──────────────────────────────────────────
+    const SECTIONS_L2 = [
+
+      {
+        id: 'pronouns',
+        title: '1. "You" and "I" — choosing the right pronoun',
+        desc: 'Japanese has multiple words for "I" and "you" depending on how casual and close you are with someone. In your songs, 君 and 僕 are everywhere.',
+        reference: () => `
+          <h3 style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">Reference</h3>
+          <table class="ref-table">
+            <tr><th>"I"</th><th>Romaji</th><th>Use when…</th></tr>
+            ${PRONOUNS_I.map(p=>`<tr><td><span class="ja">${p.ja}</span></td><td>${p.rom}</td><td>${p.note}</td></tr>`).join('')}
+          </table>
+          <table class="ref-table" style="margin-top:.5rem">
+            <tr><th>"You"</th><th>Romaji</th><th>Use when…</th></tr>
+            ${PRONOUNS_YOU.map(p=>`<tr><td><span class="ja">${p.ja}</span></td><td>${p.rom}</td><td>${p.note}</td></tr>`).join('')}
+          </table>`,
+        exercises: [
+          { q: 'In a tender love song, the male singer says "I like you". Which pronoun pair fits best?', options: ['僕が好きだ / 君が好きだ', '私が好きだ / お前が好きだ', 'あたしが好きだ / あなたが好きだ'], answer: 0, exp: '僕 (boku) is the warm casual "I" used by males in emotional songs, and 君 (kimi) is the intimate "you" — exactly what Wacci and DISH// use throughout their lyrics.' },
+          { q: 'You\'re speaking formally to someone you just met. How do you say "You are kind"?', options: ['あなたは優しい', '君は優しい', 'お前は優しい'], answer: 0, exp: 'あなた is the safest, most neutral "you" for formal or unfamiliar situations. 君 is too intimate for a stranger, and お前 would be rude.' },
+          { q: 'Fill the blank: 「___のそばにいたい」 (I want to stay close to you) — speaker is female writing in a diary.', options: ['私', '僕', 'あたし'], answer: 0, exp: '私 is neutral and used by anyone. あたし also works (casual feminine), but 私 is the most natural and common choice in writing.' },
+          { q: 'From Wacci: 「___が悪いのかな」 (I wonder if it\'s my fault). Which pronoun?', options: ['僕', '私', 'あなた'], answer: 0, exp: 'Wacci uses 僕 throughout 別の人の彼女になったよ — the speaker is a young man using the soft, casual "I".' },
+        ]
+      },
+
+      {
+        id: 'possessive',
+        title: '2. の — "my cat", "your dream", "the scent of lemon"',
+        desc: 'の connects two nouns to show possession or belonging — exactly like "\'s" or "of" in English. [Person] の [noun] = [Person]\'s [noun].',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.5rem;">Pattern: [A] の [B] = A's B</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">
+              <div><span style="font-family:var(--font-ja)">わたしの夢</span> = my dream</div>
+              <div><span style="font-family:var(--font-ja)">君の声</span> = your voice</div>
+              <div><span style="font-family:var(--font-ja)">レモンの匂い</span> = scent of lemon</div>
+              <div><span style="font-family:var(--font-ja)">いぬの名前</span> = dog's name</div>
+            </div>
+          </div>`,
+        exercises: [
+          { q: 'How do you say "my song" (私 = me, 歌 = song)?', options: ['私の歌', '歌の私', '私は歌'], answer: 0, exp: '私の歌 — the possessor always comes FIRST, then の, then the thing possessed. Think: [owner] の [owned].' },
+          { q: 'From レモン: "You are my light" — 君は___の光. Fill the blank.', options: ['わたし', '君', 'あなた'], answer: 0, exp: 'わたしの光 = "my light" — the full line is 今も君はわたしの光 (Even now, you are my light).' },
+          { q: 'How do you say "the dog\'s voice" (いぬ = dog, 声 = voice)?', options: ['いぬの声', '声のいぬ', 'いぬは声'], answer: 0, exp: 'いぬの声 — [owner]の[thing]. の just links the two nouns, same pattern as わたしの夢.' },
+          { q: 'Your friend\'s dream (ともだち = friend, 夢 = dream)?', options: ['ともだちの夢', '夢のともだち', 'ともだちは夢'], answer: 0, exp: 'ともだちの夢 — friend\'s dream. The pattern never changes: [person/thing] の [noun].' },
+          { q: 'Which of these means "the scent of rain" (雨 = rain, 匂い = scent)?', options: ['雨の匂い', '匂いの雨', '雨は匂い'], answer: 0, exp: '雨の匂い — の works for things, not just people. In レモン, you hear both レモンの匂い (scent of lemon) and 雨 in the same song.' },
+        ]
+      },
+
+      {
+        id: 'ha_ga',
+        title: '3. は vs が — topic marker vs subject marker',
+        desc: 'は (wa) marks the TOPIC of the sentence — what it\'s about. が (ga) marks the SUBJECT — the doer or focus. They can both mark the same word, but change the nuance.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="margin-bottom:.6rem;"><span style="color:var(--accent);font-weight:600;">は</span> → topic marker: "as for [X]…" — introduces or contrasts the topic</div>
+            <div style="margin-bottom:.6rem;"><span style="color:#60a5fa;font-weight:600;">が</span> → subject marker: focuses on WHO does or feels something</div>
+            <table class="ref-table" style="margin-top:.5rem;">
+              <tr><th>Sentence</th><th>Nuance</th></tr>
+              <tr><td><span style="font-family:var(--font-ja)">猫<b>は</b>可愛い</span></td><td>Cats (as a topic) are cute</td></tr>
+              <tr><td><span style="font-family:var(--font-ja)">猫<b>が</b>可愛い</span></td><td>It's the CAT that is cute (emphasis)</td></tr>
+              <tr><td><span style="font-family:var(--font-ja)">世界<b>は</b>美しい</span></td><td>The world is beautiful (レモン)</td></tr>
+              <tr><td><span style="font-family:var(--font-ja)">君<b>が</b>好き</span></td><td>It's YOU I like (strong feeling)</td></tr>
+            </table>
+          </div>`,
+        exercises: [
+          { q: 'From レモン: "The world is beautiful" — 世界___ 美しい. Which particle?', options: ['は', 'が', 'の', 'に'], answer: 0, exp: '世界は美しい — は sets "the world" as the topic: "As for the world, it is beautiful." This is the exact line from Lemon\'s chorus.' },
+          { q: '"I love YOU" (emphasis on you, not someone else) — 君___好きだ.', options: ['が', 'は', 'の', 'も'], answer: 0, exp: '君が好きだ — が focuses on WHO you love. It\'s the exact pattern you hear in J-pop when the singer wants to emphasise "it\'s YOU specifically."' },
+          { q: '"My heart and body are fighting" (from 猫) — 心と体___ 喧嘩して. Which particle?', options: ['が', 'は', 'の', 'を'], answer: 0, exp: '心と体が喧嘩して — が marks the subject doing the action (fighting). The heart and body are both the subject of the fighting.' },
+          { q: '"Dreams are far" (夢 = dream, 遠い = far) — 夢___ 遠い.', options: ['は', 'が', 'に', 'を'], answer: 0, exp: '夢は遠い — は sets "dreams" as the topic being described. "As for dreams, they are far away." は is perfect for general statements about something.' },
+        ]
+      },
+
+      {
+        id: 'tai',
+        title: '4. たい / たかった — "want to" / "wanted to"',
+        desc: 'Attach たい to the verb stem (remove ます) to say you want to do something. Use たかった for past wanting. This is the grammar behind some of the most emotional lines in your songs.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.5rem;">Pattern: [verb stem] + たい = want to [verb]</div>
+            <table class="ref-table">
+              <tr><th>Verb</th><th>Stem (drop -masu)</th><th>たい form</th><th>Meaning</th></tr>
+              <tr><td><span style="font-family:var(--font-ja)">なります</span></td><td><span style="font-family:var(--font-ja)">なり</span></td><td><span style="font-family:var(--font-ja)">なりたい</span></td><td>want to become</td></tr>
+              <tr><td><span style="font-family:var(--font-ja)">会います</span></td><td><span style="font-family:var(--font-ja)">会い</span></td><td><span style="font-family:var(--font-ja)">会いたい</span></td><td>want to meet</td></tr>
+              <tr><td><span style="font-family:var(--font-ja)">歌います</span></td><td><span style="font-family:var(--font-ja)">歌い</span></td><td><span style="font-family:var(--font-ja)">歌いたい</span></td><td>want to sing</td></tr>
+              <tr><td><span style="font-family:var(--font-ja)">言います</span></td><td><span style="font-family:var(--font-ja)">言い</span></td><td><span style="font-family:var(--font-ja)">言いたい</span></td><td>want to say</td></tr>
+            </table>
+          </div>`,
+        exercises: [
+          { q: 'From 猫: "I wanted to become a cat" — 猫に___。', options: ['なりたかった', 'なりたい', 'なった', 'なれない'], answer: 0, exp: 'なりたかった is the PAST tense of なりたい (want to become). -たい → -たかった, just like い-adjectives: 高い → 高かった.' },
+          { q: '"I want to meet you" (会う = to meet) — 君に___。', options: ['会いたい', '会いたかった', '会えない', '会った'], answer: 0, exp: '会いたい — present tense "want to meet". From ref:rain: 会いたいんだ (I want to see you). The んだ adds emotional emphasis.' },
+          { q: '"I wanted to sing that song" — あの歌を___。', options: ['歌いたかった', '歌いたい', '歌った', '歌えた'], answer: 0, exp: '歌いたかった — past wanting. Stem 歌い + たかった. The -い stem comes from 歌います → 歌い.' },
+          { q: 'From 別の人の彼女: "I wanted to let you hear this song" — この歌を聴かせ___な。', options: ['たかった', 'たい', 'ている', 'てほしい'], answer: 0, exp: 'たかった — past wanted to. The line is この歌を聴かせたかったな — "I wanted to let you hear this song (but now it\'s too late)".' },
+        ]
+      },
+
+      {
+        id: 'ni_naru',
+        title: '5. に + なる — "to become"',
+        desc: 'One of the most useful patterns in Japanese. [Noun] に + なる = "to become [noun]". You hear it constantly — in 猫 (become a cat), in Wacci (become someone\'s girlfriend), and more.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.5rem;">Pattern: [noun] に + なる</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-top:.3rem;">
+              <div><span style="font-family:var(--font-ja)">猫になる</span> = become a cat</div>
+              <div><span style="font-family:var(--font-ja)">大人になった</span> = became an adult</div>
+              <div><span style="font-family:var(--font-ja)">彼女になった</span> = became a girlfriend</div>
+              <div><span style="font-family:var(--font-ja)">ともだちになろう</span> = let\'s become friends</div>
+            </div>
+          </div>`,
+        exercises: [
+          { q: '"Became someone\'s girlfriend" — 別の人の___になった。', options: ['彼女', '猫', '大人', '夢'], answer: 0, exp: '彼女になった — "became a girlfriend". This is literally the title of the Wacci song: 別の人の彼女になったよ.' },
+          { q: '"I want to become a cat" (present wish) — 猫に___。', options: ['なりたい', 'なった', 'なれる', 'なっている'], answer: 0, exp: 'なりたい — want to become. From 猫 by DISH//: 猫になりたかった (past: wanted to become).' },
+          { q: '"Let\'s become friends" — ともだちに___。', options: ['なろう', 'なった', 'なりたかった', 'なれない'], answer: 0, exp: 'なろう is the volitional/invitation form of なる — "let\'s become". Like "let\'s go" = 行こう.' },
+          { q: '"The days became boring" (つまらない = boring) — 日々が___ なった。', options: ['つまらなく', 'つまらない', 'つまら', 'つまらなかった'], answer: 0, exp: 'つまらなく + なった — when an i-adjective precedes なる, it changes to its -く form. つまらない → つまらなく + なった = became boring. From 猫: 面白いくらいにつまらない.' },
+        ]
+      },
+
+      {
+        id: 'mada_mo',
+        title: '6. まだ / も / ずっと — time and emphasis',
+        desc: 'Three little words that pack a huge emotional punch. まだ = still/not yet. も = also/even. ずっと = all along/always. These appear in almost every one of your songs.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;">
+            <div><div style="color:var(--accent);font-weight:700;font-family:var(--font-ja)">まだ</div><div style="color:var(--muted);font-size:.75rem;margin:.2rem 0">mada</div><div>still / not yet</div><div style="color:var(--muted);font-size:.75rem;margin-top:.3rem">まだ好き = still like you<br>まだ言えない = can't say yet</div></div>
+            <div><div style="color:var(--accent);font-weight:700;font-family:var(--font-ja)">も</div><div style="color:var(--muted);font-size:.75rem;margin:.2rem 0">mo</div><div>also / even / too</div><div style="color:var(--muted);font-size:.75rem;margin-top:.3rem">今も = even now<br>君も = you too</div></div>
+            <div><div style="color:var(--accent);font-weight:700;font-family:var(--font-ja)">ずっと</div><div style="color:var(--muted);font-size:.75rem;margin:.2rem 0">zutto</div><div>all along / always</div><div style="color:var(--muted);font-size:.75rem;margin-top:.3rem">ずっと好き = always liked you<br>ずっとそばに = always nearby</div></div>
+          </div>`,
+        exercises: [
+          { q: 'From ref:rain: "Still not enough" — ___ 足りなくて。', options: ['まだ', 'もう', 'ずっと', 'また'], answer: 0, exp: 'まだ + negative = "not yet / still not". まだ足りない = "still not enough" — that ache of wanting more.' },
+          { q: 'From レモン: "Even now, you are my light" — ___ 君はわたしの光。', options: ['今も', '今は', '今が', '今ずっと'], answer: 0, exp: '今も — 今 (now) + も (even/also) = "even now". も replaces は or が to add the nuance of "too" or "even".' },
+          { q: 'From Wacci: "I\'ve always liked you, all along" — ___ 好きだったんだ。', options: ['ずっと', 'まだ', 'また', 'もう'], answer: 0, exp: 'ずっと expresses duration — "all along, the whole time". ずっと好きだった = liked you the whole time, continuously.' },
+          { q: '"I still can\'t forget" — ___ 忘れられない。', options: ['まだ', 'ずっと', 'また', 'もう'], answer: 0, exp: 'まだ + negative = "still not [doing it]". まだ忘れられない = still can\'t forget. ずっと also fits emotionally, but まだ emphasises the "not yet" aspect.' },
+        ]
+      },
+
+      {
+        id: 'nouns',
+        title: '7. Building phrases with song vocab + everyday nouns',
+        desc: 'Use の to build "my ___" / "your ___" phrases with both song vocab and everyday nouns. Click any noun to hear it.',
+        reference: () => {
+          const all = BASIC_NOUNS;
+          const pills = all.map(n => `<div class="noun-pill" onclick="speak('${n.ja}')"><span class="ja">${n.ja}</span><span class="rom">${n.romaji}</span><span class="en">${n.en}</span></div>`).join('');
+          return `<div class="noun-grid">${pills}</div>`;
+        },
+        exercises: [
+          { q: '"My dog" (僕 = me, いぬ = dog)', options: ['僕のいぬ', 'いぬの僕', 'いぬは僕'], answer: 0, exp: '僕のいぬ — [person] の [thing]. The dog is mine.' },
+          { q: '"Your music" (君 = you, おんがく = music)', options: ['君のおんがく', 'おんがくの君', '君はおんがく'], answer: 0, exp: '君のおんがく — exactly like わたしの夢 or 君の声 from the songs.' },
+          { q: '"The friend\'s name" (ともだち = friend, なまえ = name)', options: ['ともだちのなまえ', 'なまえのともだち', 'ともだちはなまえ'], answer: 0, exp: 'ともだちのなまえ — [whose] の [what]. The friend is the owner, the name is what\'s owned.' },
+          { q: 'Which means "the wind\'s voice" (かぜ = wind, こえ = voice)?', options: ['かぜのこえ', 'こえのかぜ', 'かぜはこえ'], answer: 0, exp: 'かぜのこえ — "the voice of the wind". In さよなら, 春の風 (haru no kaze) = the spring wind, same pattern.' },
+          { q: '"My younger sister\'s dream" (僕 = I, いもうと = younger sister, ゆめ = dream)', options: ['僕のいもうとのゆめ', 'いもうとのゆめの僕', 'ゆめのいもうと'], answer: 0, exp: '僕のいもうとのゆめ — you can chain の: [mine] の [sister] の [dream]. "My younger sister\'s dream."' },
+        ]
+      },
+
+      {
+        id: 'nante',
+        title: '8. なんて — dismissal, disbelief, "of all things"',
+        desc: 'Add なんて after a noun or phrase to express that something is hard to believe, surprising, or being brushed off. From 猫: 君の顔なんて忘れてやるさ — "I\'ll forget your face" (said with the bitterness of someone who knows they probably can\'t).',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.6rem;">Pattern: [noun / phrase] + なんて</div>
+            <table class="ref-table">
+              <tr><th>Japanese</th><th>Meaning</th><th>Feel</th></tr>
+              <tr><td><span class="ja">君の顔なんて忘れてやるさ</span></td><td>I'll forget your face</td><td>bitter bravado — he knows he can't</td></tr>
+              <tr><td><span class="ja">夢なんて</span></td><td>dreams… (pff)</td><td>dismissive — "dreams, as if"</td></tr>
+              <tr><td><span class="ja">泣くなんて</span></td><td>crying — of all things</td><td>surprised or self-deprecating</td></tr>
+              <tr><td><span class="ja">さようならなんて言わないで</span></td><td>don't say something like "goodbye"</td><td>pleading — that word feels impossible</td></tr>
+            </table>
+          </div>`,
+        exercises: [
+          { q: 'From 猫: "I\'ll forget your face" — 君の顔___ 忘れてやるさ。', options: ['なんて', 'でも', 'から', 'まで'], answer: 0, exp: 'なんて after 君の顔 dismisses the idea — "your face, of all things". The さ at the end adds bravado. He\'s trying to convince himself.' },
+          { q: 'You\'re surprised you cried. "I cried — of all things!" — ___なんてね。', options: ['泣いた', 'なきたい', 'なみだ', 'わらう'], answer: 0, exp: '泣いたなんて — the verb in plain past form + なんて: "I actually cried — I can\'t believe it." A very natural self-surprised expression.' },
+          { q: 'A friend says "さようならなんて言わないで". What does なんて do here?', options: ['Makes "goodbye" feel unbearable / impossible to say', 'Means "even if"', 'Shows the action is ongoing', 'Marks the topic'], answer: 0, exp: 'なんて highlights that the word さようなら itself feels too heavy or unbelievable — "don\'t say something like that". It colours the noun with strong feeling.' },
+          { q: '"Dreams — as if!" (dismissing the idea of dreams) — ___なんて。', options: ['夢', '君', '今', '光'], answer: 0, exp: '夢なんて — "dreams, of all things / dreams? please." Just noun + なんて is enough to express the dismissal. No verb needed.' },
+        ]
+      },
+
+      {
+        id: 'kono',
+        title: '9. この / その / あの — "this", "that", "that (shared)"',
+        desc: 'These three words always come directly before a noun and can never stand alone. この = this (near you). その = that (near the other person). あの = that one both of you know about — often used for memories.',
+        reference: () => `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;font-size:.88rem;">
+            <div style="font-weight:600;color:var(--accent);margin-bottom:.6rem;">この · その · あの — always before a noun</div>
+            <table class="ref-table">
+              <tr><th>Word</th><th>Distance</th><th>Song example</th></tr>
+              <tr><td><span class="ja">この</span> (kono)</td><td>near the speaker — "this"</td><td><span class="ja">だからこの僕も一緒に</span> — so take this me too</td></tr>
+              <tr><td><span class="ja">その</span> (sono)</td><td>near the listener — "that"</td><td><span class="ja">その傷拭うし</span> — I'd wipe those wounds (猫)</td></tr>
+              <tr><td><span class="ja">あの</span> (ano)</td><td>shared memory / far away</td><td><span class="ja">あの頃</span> — back then (レモン, ref:rain)</td></tr>
+            </table>
+            <div style="margin-top:.6rem;color:var(--muted);font-size:.8rem;">⚠ None of these can stand alone — they must precede a noun: この<b>街</b>, あの<b>日</b>, その<b>声</b>.</div>
+          </div>`,
+        exercises: [
+          { q: 'From 猫: "だから___ 僕も一緒に" — the singer points at himself emotionally. Which word?', options: ['この', 'その', 'あの', 'どの'], answer: 0, exp: 'この僕 — "this me (right here)". この points to something close to the speaker — in this case, himself. It adds emotional weight: "even this pathetic me".' },
+          { q: '"That city we both remember" — ___ 街。', options: ['あの', 'この', 'その', 'どの'], answer: 0, exp: 'あの街 — あの is for things both people share in memory or that are far away from both. 猫 opens with この街 (this city, near the speaker now) but あの街 would evoke a remembered place.' },
+          { q: '"I like this song" — ___ 歌が好き。', options: ['この', 'あの', 'その', 'どの'], answer: 0, exp: 'この歌が好き — この is "this" near the speaker right now. If you\'re talking about a song you\'re currently listening to or holding, この is exactly right.' },
+          { q: 'From レモン / ref:rain: "___ 頃" means "back then / that time". Which word?', options: ['あの', 'この', 'その', 'いつ'], answer: 0, exp: 'あの頃 — "back then". あの is perfect for shared memories: both speaker and listener know the time being referenced. You hear this constantly in J-pop about lost love.' },
+          { q: '"That voice of yours" (talking to someone present) — ___ 声。', options: ['その', 'この', 'あの', 'どの'], answer: 0, exp: 'その声 — その points to something near the *listener*. Since the voice belongs to the person you\'re talking to, その fits. あの声 would feel more like a remembered voice from the past.' },
+        ]
+      },
+
+    ]; // end SECTIONS_L2
+
+    // ── Build sections ────────────────────────────────────────────
+
+    function buildSections(sections, container) {
+      sections.forEach(sec => {
+        const div = document.createElement('div');
+        div.className = 'gp-section';
+        div.id = sec.id;
+        div.innerHTML = `
+          <h2>${sec.title}</h2>
+          <p class="gp-desc">${sec.desc}</p>
+          ${sec.reference()}
+          <div class="gp-exercises" id="ex-${sec.id}"></div>
+        `;
+        const exContainer = div.querySelector(`#ex-${sec.id}`);
+        sec.exercises.forEach(ex => buildExercise(exContainer, ex));
+        annotateSection(div);
+        container.appendChild(div);
+      });
+    }
+
+    const cL1 = document.getElementById('levelL1');
+    const cL2 = document.getElementById('levelL2');
+    buildSections(SECTIONS_L1, cL1);
+    buildSections(SECTIONS_L2, cL2);
+
+    // ── Tab switching ─────────────────────────────────────────────
+    document.getElementById('tabL1').addEventListener('click', () => {
+      document.getElementById('tabL1').classList.add('active');
+      document.getElementById('tabL2').classList.remove('active');
+      cL1.style.display = ''; cL2.style.display = 'none';
+    });
+    document.getElementById('tabL2').addEventListener('click', () => {
+      document.getElementById('tabL2').classList.add('active');
+      document.getElementById('tabL1').classList.remove('active');
+      cL2.style.display = ''; cL1.style.display = 'none';
+    });
+
+    function buildExercise(container, ex) {
+      const card = document.createElement('div');
+      card.className = 'ex-card';
+      card.innerHTML = `
+        <div class="ex-q">${ex.q}</div>
+        <div class="ex-options">
+          ${ex.options.map((opt, oi) => `
+            <button class="ex-opt" data-idx="${oi}">${opt}</button>`).join('')}
+        </div>
+        <div class="ex-feedback hidden"></div>
+      `;
+
+      const opts = card.querySelectorAll('.ex-opt');
+      const feedback = card.querySelector('.ex-feedback');
+
+      opts.forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.disabled) return;
+          opts.forEach(b => b.disabled = true);
+
+          const chosen = parseInt(btn.dataset.idx);
+          const correct = chosen === ex.answer;
+
+          totalAnswered++;
+          if (correct) totalCorrect++;
+          updateScore();
+
+          if (correct) {
+            btn.classList.add('selected-correct');
+            card.classList.add('correct');
+            feedback.className = 'ex-feedback correct';
+            feedback.textContent = '✓ ' + ex.exp;
+          } else {
+            btn.classList.add('selected-wrong');
+            card.classList.add('wrong');
+            opts[ex.answer].classList.add('reveal-correct');
+            feedback.className = 'ex-feedback wrong';
+            feedback.textContent = '✗ ' + ex.exp;
+          }
+        });
+      });
+
+      container.appendChild(card);
+    }
+
+  });
+  </script>
+</body>
+</html>

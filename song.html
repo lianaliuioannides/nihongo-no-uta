@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Song — 日本語 Music</title>
+  <link rel="stylesheet" href="style.css?v=4" />
+  <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark'</script>
+</head>
+<body>
+  <main class="page" id="main">
+    <p style="color:var(--muted)">Loading...</p>
+  </main>
+
+  <script src="lyrics.js?v=5"></script>
+  <script src="dict.js?v=4"></script>
+  <script src="app.js?v=5"></script>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const id = getParam('id');
+    const song = getSong(id);
+    const main = document.getElementById('main');
+
+    if (!song) { main.innerHTML = `<p>Song not found. <a href="index.html">Go back</a></p>`; return; }
+    document.title = `${song.titleJa} — 日本語 Music`;
+
+    let showRomaji = true;
+    let showEn = false;
+    let vocabMode = 'key'; // 'off' | 'key' | 'all'
+
+    const keyMap = new Map();
+    (song.vocab || []).forEach(w => keyMap.set(w.ja, { ...w, tier: 'key' }));
+    const extMap = new Map();
+    (song.extendedVocab || []).forEach(w => { if (!keyMap.has(w.ja)) extMap.set(w.ja, { ...w, tier: 'ext' }); });
+
+    function lookupWord(ja) {
+      return keyMap.get(ja) || extMap.get(ja) || (JDICT.has(ja) ? { ...JDICT.get(ja), ja, tier: 'dict' } : null);
+    }
+
+    // Build sorted token keys for max-matching (JDICT only, not vocab — vocab handled separately)
+    const DICT_KEYS = [...JDICT.keys()].sort((a, b) => [...b].length - [...a].length);
+
+    // ── Line HTML builder ────────────────────────────────────────
+    // Step 1: find all vocab match positions (exact + verb-stem)
+    // Step 2: fill gaps with JDICT max-matching
+    function buildLineHtml(text) {
+      const chars = [...text];
+      const n = chars.length;
+
+      // -- Step 1: collect vocab matches --
+      const claimed = new Uint8Array(n); // 1 = already claimed by a vocab word
+      const matches = []; // { start, end, word, tier }
+
+      if (vocabMode !== 'off') {
+        const entries = [];
+        if (vocabMode === 'key' || vocabMode === 'all') keyMap.forEach((w, ja) => entries.push([ja, 'key']));
+        if (vocabMode === 'all') extMap.forEach((w, ja) => entries.push([ja, 'ext']));
+        // Longest first so longer words win over sub-words
+        entries.sort((a, b) => [...b[0]].length - [...a[0]].length);
+
+        for (const [ja, tier] of entries) {
+          const wc = [...ja];
+          const wl = wc.length;
+          const lastHira = wl >= 2 && charType(wc[wl - 1]) === 'hira';
+          const stem = lastHira ? wc.slice(0, -1) : null;
+          const sl = stem ? stem.length : 0;
+
+          for (let i = 0; i <= n - 1; i++) {
+            if (claimed[i]) continue;
+
+            // Exact match
+            if (i + wl <= n && wc.every((c, j) => chars[i + j] === c)) {
+              if (!claimed.slice(i, i + wl).some(Boolean)) {
+                matches.push({ start: i, end: i + wl, word: ja, tier });
+                for (let j = 0; j < wl; j++) claimed[i + j] = 1;
+                continue;
+              }
+            }
+
+            // Stem match: word ends in hiragana, try matching stem inside a conjugation
+            if (stem && i + sl < n && stem.every((c, j) => chars[i + j] === c) && charType(chars[i + sl]) === 'hira') {
+              if (!claimed.slice(i, i + sl).some(Boolean)) {
+                matches.push({ start: i, end: i + sl, word: ja, tier });
+                for (let j = 0; j < sl; j++) claimed[i + j] = 1;
+              }
+            }
+          }
+        }
+      }
+
+      matches.sort((a, b) => a.start - b.start);
+
+      // -- Step 2: build HTML interleaving vocab spans + JDICT gaps --
+      let html = '';
+      let pos = 0;
+
+      for (const m of matches) {
+        if (pos < m.start) html += dictSegment(chars, pos, m.start);
+        const display = chars.slice(m.start, m.end).join('');
+        const cls = m.tier === 'key' ? 'vocab-word vocab-key' : 'vocab-word vocab-ext';
+        html += `<span class="${cls}" data-word="${escAttr(m.word)}">${escHtml(display)}</span>`;
+        pos = m.end;
+      }
+      if (pos < n) html += dictSegment(chars, pos, n);
+
+      return html;
+    }
+
+    // Tokenise a character slice using JDICT max-matching; make each token clickable
+    function dictSegment(chars, from, to) {
+      let html = '';
+      let i = from;
+      while (i < to) {
+        const ct = charType(chars[i]);
+        // Non-Japanese characters — plain text
+        if (ct === 'other') { html += escHtml(chars[i++]); continue; }
+
+        // Try JDICT longest match
+        let matched = false;
+        for (const key of DICT_KEYS) {
+          const kc = [...key];
+          if (i + kc.length > to) continue;
+          if (kc.every((c, j) => chars[i + j] === c)) {
+            html += `<span class="word-any word-known" data-word="${escAttr(key)}">${escHtml(key)}</span>`;
+            i += kc.length;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          const ch = chars[i];
+          const chType = charType(ch);
+          if (chType === 'kanji') {
+            // Single kanji — always clickable, every kanji has a core meaning
+            const w = lookupWord(ch);
+            html += `<span class="word-any${w ? ' word-known' : ''}" data-word="${escAttr(ch)}">${escHtml(ch)}</span>`;
+          } else if (chType === 'hira') {
+            // Lone hiragana not matched by dict = verb/adj ending, not a standalone word → plain text
+            html += escHtml(ch);
+          } else {
+            // Katakana not matched — still clickable (foreign word fragment)
+            html += `<span class="word-any" data-word="${escAttr(ch)}">${escHtml(ch)}</span>`;
+          }
+          i++;
+        }
+      }
+      return html;
+    }
+
+    // ── Analysis block (word-by-word breakdown) ──────────────────
+    function buildAnalysisHtml(analysis) {
+      if (!analysis || !analysis.length) return '';
+      const chips = analysis.map(chunk => {
+        const hasKana = chunk.reading && chunk.reading !== chunk.text;
+        return `
+          <div class="analysis-chip">
+            <div class="ac-text">${escHtml(chunk.text)}</div>
+            ${hasKana ? `<div class="ac-reading">${escHtml(chunk.reading)}</div>` : ''}
+            <div class="ac-meaning">${escHtml(chunk.meaning)}</div>
+            ${chunk.note ? `<div class="ac-note">${escHtml(chunk.note)}</div>` : ''}
+            ${chunk.example ? `<div class="ac-example"><span class="ac-ex-ja">${escHtml(chunk.example)}</span><span class="ac-ex-en">${escHtml(chunk.exampleEn || '')}</span></div>` : ''}
+          </div>`;
+      }).join('');
+      return `<div class="analysis-row">${chips}</div>`;
+    }
+
+    // ── Render ───────────────────────────────────────────────────
+    function render() {
+      const idx = SONGS.indexOf(song);
+      const prev = SONGS[idx - 1], next = SONGS[idx + 1];
+
+      let ytBlock = song.youtubeId
+        ? `<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${song.youtubeId}?rel=0" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe></div>`
+        : `<div class="yt-fallback"><a href="https://www.youtube.com/results?search_query=${encodeURIComponent(song.youtubeSearch || song.titleJa)}" target="_blank" rel="noopener">▶ Listen on YouTube</a></div>`;
+
+      let lyricsHtml = '';
+      song.sections.forEach(sec => {
+        lyricsHtml += `<div class="section-label">${sec.name}</div>`;
+        sec.lines.forEach(line => {
+          const jaHtml = buildLineHtml(line.ja);
+          const analysisHtml = sec.showAnalysis ? buildAnalysisHtml(line.analysis) : '';
+          lyricsHtml += `
+            <div class="lyric-line${analysisHtml ? ' has-analysis' : ''}">
+              <div class="line-ja">${jaHtml}</div>
+              <div class="line-romaji${showRomaji ? '' : ' hidden'}">${escHtml(line.romaji)}</div>
+              <div class="line-en${showEn ? '' : ' hidden'}">${escHtml(line.en)}</div>
+              ${analysisHtml}
+            </div>`;
+        });
+      });
+
+      const modeLabel = { off: 'Highlight words', key: '★ Key vocab', all: '★★ All words' };
+      const prevLink = prev ? `<a href="song.html?id=${prev.id}"><span class="nav-label">← Previous</span><span class="nav-title">${prev.titleJa}</span></a>` : `<span></span>`;
+      const nextLink = next ? `<a href="song.html?id=${next.id}" class="next"><span class="nav-label">Next →</span><span class="nav-title">${next.titleJa}</span></a>` : `<span></span>`;
+
+      main.innerHTML = `
+        <div class="song-header">
+          <div class="song-color-block" style="background:${song.color}"></div>
+          <div class="song-meta">
+            <div class="ja">${song.titleJa}</div>
+            <div class="en">${song.title} · ${song.artistJa} (${song.artist}) · ${song.year}</div>
+          </div>
+        </div>
+        ${ytBlock}
+        <div class="controls">
+          <button class="btn${showRomaji ? ' active' : ''}" id="btnRomaji">${showRomaji ? '✓' : ''} Romaji</button>
+          <button class="btn${showEn ? ' active' : ''}" id="btnEn">${showEn ? '✓' : ''} English</button>
+          <button class="btn${vocabMode !== 'off' ? ' active' : ''}" id="btnVocab">${modeLabel[vocabMode]}</button>
+          <button class="btn" id="btnVocabList">Vocab List (${song.vocab.length})</button>
+          ${SONG_GRAMMAR[id] ? `<button class="btn" id="btnGrammar">文 Grammar</button>` : ''}
+        </div>
+        <div class="vocab-legend" style="${vocabMode === 'off' ? 'display:none' : ''}">
+          <span class="legend-key">▬ Key vocab</span>
+          ${vocabMode === 'all' ? '<span class="legend-ext">▬ Extended</span>' : ''}
+          <span class="legend-any">— Click any word for meaning</span>
+        </div>
+        <div id="lyrics">${lyricsHtml}</div>
+        <div id="vocabPanel" style="display:none;margin-top:2rem;">
+          <h3>Key Vocabulary</h3>
+          <div id="vocabGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem;margin-top:.75rem;"></div>
+        </div>
+        <div id="grammarPanel" style="display:none;margin-top:2rem;">${buildGrammarHtml(id)}</div>
+        <div class="song-nav">${prevLink}${nextLink}</div>
+      `;
+
+      document.getElementById('btnRomaji').addEventListener('click', () => { showRomaji = !showRomaji; render(); });
+      document.getElementById('btnEn').addEventListener('click', () => { showEn = !showEn; render(); });
+      document.getElementById('btnVocab').addEventListener('click', () => {
+        vocabMode = vocabMode === 'off' ? 'key' : vocabMode === 'key' ? 'all' : 'off';
+        render();
+      });
+      document.getElementById('btnVocabList').addEventListener('click', toggleVocabPanel);
+      document.getElementById('btnGrammar')?.addEventListener('click', () => {
+        const p = document.getElementById('grammarPanel');
+        p.style.display = p.style.display === 'none' ? '' : 'none';
+      });
+
+      document.querySelectorAll('.vocab-word[data-word]').forEach(el => {
+        el.addEventListener('click', e => { e.stopPropagation(); const w = lookupWord(el.dataset.word); if (w) showTooltip(w, el); });
+      });
+      document.querySelectorAll('.word-any[data-word]').forEach(el => {
+        el.addEventListener('click', e => {
+          e.stopPropagation();
+          const w = lookupWord(el.dataset.word);
+          if (w) showTooltip(w, el); else showLookupTooltip(el.dataset.word, el);
+        });
+      });
+    }
+
+    function toggleVocabPanel() {
+      const panel = document.getElementById('vocabPanel');
+      const grid = document.getElementById('vocabGrid');
+      if (panel.style.display === 'none') {
+        grid.innerHTML = song.vocab.map(w => `
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;cursor:pointer;" data-word="${escAttr(w.ja)}">
+            <div style="font-family:var(--font-ja);font-size:1.3rem;">${escHtml(w.ja)}</div>
+            <div style="font-size:.75rem;color:var(--muted);font-family:var(--font-ja);">${escHtml(w.hiragana)}</div>
+            <div style="font-size:.8rem;font-style:italic;color:#a8b6c8;">${escHtml(w.romaji)}</div>
+            <div style="font-size:.85rem;margin-top:.3rem;">${escHtml(w.en)}</div>
+          </div>`).join('');
+        panel.style.display = 'block';
+        grid.querySelectorAll('[data-word]').forEach(card => card.addEventListener('click', () => speak(card.dataset.word)));
+      } else { panel.style.display = 'none'; }
+    }
+
+    initTooltip();
+    render();
+  });
+
+  function buildGrammarHtml(songId) {
+    const points = SONG_GRAMMAR[songId];
+    if (!points || !points.length) return '';
+    const cards = points.map(p => {
+      const anchorHl = p.anchor.replace(p.highlight, `<mark class="gram-hl">${escHtml(p.highlight)}</mark>`);
+      const exRows = (p.examples || []).map(ex => `
+        <div class="gram-ex">
+          <span class="gram-ex-ja" style="font-family:var(--font-ja)">${escHtml(ex.ja)}</span>
+          <span class="gram-ex-rom">${escHtml(ex.romaji)}</span>
+          <span class="gram-ex-en">${escHtml(ex.en)}</span>
+        </div>`).join('');
+      return `
+        <div class="gram-card">
+          <div class="gram-topic">${escHtml(p.topic)}</div>
+          <div class="gram-pattern">${escHtml(p.pattern)}</div>
+          <div class="gram-anchor">"${anchorHl}"</div>
+          <div class="gram-explanation">${escHtml(p.explanation)}</div>
+          ${exRows ? `<div class="gram-examples">${exRows}</div>` : ''}
+          <a class="gram-practice-link" href="grammar.html">Practice this →</a>
+        </div>`;
+    }).join('');
+    return `<div style="margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:center;"><h3>Grammar from this song</h3><a href="grammar.html" style="font-size:.82rem;color:var(--accent);">Full Grammar Practice →</a></div>${cards}`;
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  </script>
+</body>
+</html>

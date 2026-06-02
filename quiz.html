@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz — 日本語 Music</title>
+  <link rel="stylesheet" href="style.css?v=4" />
+  <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark'</script>
+</head>
+<body>
+  <main class="page">
+    <div class="hero" style="padding-top:2rem;">
+      <h1>Vocab Quiz</h1>
+      <p>Flashcards from your songs. See the Japanese word, guess the meaning, then flip to check.</p>
+    </div>
+
+    <div class="quiz-filters" id="filters"></div>
+
+    <div class="quiz-stats" id="stats"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+    <div id="quizArea"></div>
+  </main>
+
+  <script src="lyrics.js?v=5"></script>
+  <script src="dict.js?v=3"></script>
+  <script src="app.js?v=5"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const allWords = [];
+      SONGS.forEach(song => {
+        song.vocab.forEach(w => allWords.push({ ...w, songId: song.id, songTitle: song.titleJa, songColor: song.color }));
+      });
+
+      let activeFilter = 'all';
+      let deck = [];
+      let current = 0;
+      let flipped = false;
+      let sessionGot = 0;
+      let sessionHalf = 0;
+      let sessionMiss = 0;
+
+      const filtersEl = document.getElementById('filters');
+      filtersEl.appendChild(makeFilterBtn('All songs', 'all'));
+      SONGS.forEach(song => filtersEl.appendChild(makeFilterBtn(song.titleJa, song.id, song.color)));
+
+      function makeFilterBtn(label, id, color) {
+        const btn = document.createElement('button');
+        btn.className = 'btn' + (id === 'all' ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.quiz-filters .btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          activeFilter = id;
+          startDeck();
+        });
+        return btn;
+      }
+
+      function startDeck() {
+        const words = activeFilter === 'all'
+          ? [...allWords]
+          : allWords.filter(w => w.songId === activeFilter);
+        deck = words.sort(() => Math.random() - 0.5);
+        current = 0;
+        flipped = false;
+        sessionGot = 0;
+        sessionHalf = 0;
+        sessionMiss = 0;
+        render();
+      }
+
+      function render() {
+        const statsEl = document.getElementById('stats');
+        const fill = document.getElementById('progressFill');
+        const area = document.getElementById('quizArea');
+
+        if (deck.length === 0) {
+          area.innerHTML = `<div class="empty-quiz">No words for this filter.</div>`;
+          statsEl.innerHTML = '';
+          fill.style.width = '0%';
+          return;
+        }
+
+        // Progress counts only "done" cards (got + half), not miss (they come back)
+        const done = sessionGot + sessionHalf;
+        const total = deck.length + sessionMiss; // approximate total including revisits
+        const pct = deck.length > 0 ? Math.round((current / (current + deck.length - current)) * 100) : 0;
+        fill.style.width = Math.round((done / (done + deck.length - current)) * 100) + '%';
+
+        statsEl.innerHTML = `
+          <div class="stat">Card <span>${Math.min(current + 1, deck.length)} / ${deck.length}</span></div>
+          <div class="stat good">Got it <span>${sessionGot}</span></div>
+          <div class="stat half">Almost <span>${sessionHalf}</span></div>
+          <div class="stat bad">Try again <span>${sessionMiss}</span></div>
+        `;
+
+        if (current >= deck.length) {
+          fill.style.width = '100%';
+          area.innerHTML = `
+            <div class="quiz-card" style="cursor:default;">
+              <div style="font-size:2rem;">🎉</div>
+              <div style="font-size:1.1rem;font-weight:600;margin-top:0.5rem;">Deck complete!</div>
+              <div style="font-size:0.85rem;color:var(--muted);margin-top:0.4rem;">${sessionGot} got it · ${sessionHalf} almost · ${sessionMiss} to review</div>
+            </div>
+            <div class="quiz-actions" style="margin-top:1rem;">
+              <button class="btn" id="restartBtn">Shuffle &amp; Restart</button>
+            </div>
+          `;
+          document.getElementById('restartBtn').addEventListener('click', startDeck);
+          return;
+        }
+
+        const word = deck[current];
+        const stats = getWordStats(word.songId, word.ja);
+
+        if (!flipped) {
+          area.innerHTML = `
+            <div class="quiz-card" id="card">
+              <div class="from-song" style="color:${word.songColor}">${word.songTitle}</div>
+              <div class="front-ja">${word.ja}</div>
+              <div class="front-hint">tap to reveal meaning</div>
+              ${stats.got + stats.half + stats.miss > 0
+                ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:0.75rem;">past: ${stats.got}✓ ${stats.half||0}≈ ${stats.miss}✗</div>`
+                : ''}
+            </div>
+            <div class="quiz-actions" style="visibility:hidden;">
+              <button class="btn try-again" style="opacity:0">placeholder</button>
+              <button class="btn almost" style="opacity:0">placeholder</button>
+              <button class="btn got-it" style="opacity:0">placeholder</button>
+            </div>
+          `;
+          document.getElementById('card').addEventListener('click', () => { flipped = true; render(); });
+        } else {
+          area.innerHTML = `
+            <div class="quiz-card" id="card" title="Tap to flip back">
+              <div class="from-song" style="color:${word.songColor}">${word.songTitle}</div>
+              <div class="back-hira">${word.hiragana}</div>
+              <div class="back-romaji">${word.romaji}</div>
+              <div class="back-en">${word.en}</div>
+              <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
+              <div style="font-size:0.7rem;color:var(--muted);margin-top:0.75rem;">tap card to flip back</div>
+            </div>
+            <div class="quiz-actions">
+              <button class="btn try-again" id="missBtn">✗ Try again</button>
+              <button class="btn almost" id="halfBtn">≈ Got half</button>
+              <button class="btn got-it" id="gotBtn">✓ Got it</button>
+            </div>
+          `;
+          document.getElementById('card').addEventListener('click', e => {
+            if (e.target.id === 'speakBtn' || e.target.classList.contains('speak-btn')) return;
+            flipped = false; render();
+          });
+          document.getElementById('speakBtn').addEventListener('click', () => speak(word.ja));
+
+          document.getElementById('gotBtn').addEventListener('click', () => {
+            markWord(word.songId, word.ja, 'got');
+            sessionGot++;
+            current++;
+            flipped = false;
+            render();
+          });
+
+          document.getElementById('halfBtn').addEventListener('click', () => {
+            markWord(word.songId, word.ja, 'half');
+            sessionHalf++;
+            // Move to near-end of remaining deck (comes back once more)
+            const remaining = deck.length - current - 1;
+            const insertAt = current + 1 + Math.floor(remaining * 0.6);
+            deck.splice(insertAt, 0, deck.splice(current, 1)[0]);
+            flipped = false;
+            render();
+          });
+
+          document.getElementById('missBtn').addEventListener('click', () => {
+            markWord(word.songId, word.ja, 'miss');
+            sessionMiss++;
+            // Move to end of deck so it comes back
+            deck.push(deck.splice(current, 1)[0]);
+            flipped = false;
+            render();
+          });
+        }
+      }
+
+      startDeck();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>日本語 Music — Learn Japanese through Songs</title>
+  <link rel="stylesheet" href="style.css?v=4" />
+  <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark'</script>
+</head>
+<body>
+  <main class="page">
+    <div class="hero">
+      <h1>Learn Japanese<br>through <span class="ja">音楽</span></h1>
+      <p>Songs you already know phonetically — now learn to read them, understand the words, and pick up the alphabet along the way.</p>
+    </div>
+
+    <h2>Your Songs</h2>
+    <div class="card-grid" id="songGrid"></div>
+
+    <h2 style="margin-top: 2.5rem;">Study Tools</h2>
+    <div class="nav-cards">
+      <a href="alphabet.html" class="nav-card">
+        <div class="label">あ Alphabet Chart</div>
+        <div class="sublabel">Hiragana &amp; katakana — click to hear each character</div>
+      </a>
+      <a href="quiz.html" class="nav-card">
+        <div class="label">🃏 Vocab Quiz</div>
+        <div class="sublabel">Flashcards from all four songs — track your progress</div>
+      </a>
+      <a href="grammar.html" class="nav-card">
+        <div class="label">文 Grammar Practice</div>
+        <div class="sublabel">Practice grammar from all your songs — pronouns, particles, patterns &amp; more</div>
+      </a>
+    </div>
+  </main>
+
+  <script src="lyrics.js?v=5"></script>
+  <script src="dict.js?v=3"></script>
+  <script src="app.js?v=5"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const grid = document.getElementById('songGrid');
+      SONGS.forEach(song => {
+        const a = document.createElement('a');
+        a.className = 'song-card';
+        a.href = `song.html?id=${song.id}`;
+        a.innerHTML = `
+          <div class="color-bar" style="background:${song.color}"></div>
+          <div class="ja-title">${song.titleJa}</div>
+          <div class="en-title">${song.title}</div>
+          <div class="artist">${song.artistJa} · ${song.artist}</div>
+          <div class="desc">${song.description}</div>
+        `;
+        grid.appendChild(a);
+      });
+    });
+  </script>
+</body>
+</html>
